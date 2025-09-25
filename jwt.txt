@@ -1,0 +1,867 @@
+okay let me tell you one more thing.
+see  i will use ASP.NET identity on new and let old app use jwt .
+as old app send token to new app while redirection i will extract the info of user and verify them  and set their cookie on new app.
+after sometime where user will done with new app and will go back t old one i will and create a jwt token then send back to old one where it will encode  and verify the user .
+how is that plan what you say ?
+ChatGPT said:
+
+Ah! Now I fully understand your plan — thanks for explaining clearly.
+
+Here’s a summary of your plan:
+
+Old app (WebForms) → New app (MVC with Identity)
+
+Old app sends JWT to new app during redirection.
+
+New app extracts user info from JWT → verifies token → signs user in with Identity + secure cookie.
+
+New app → Old app
+
+User finishes work in new app.
+
+New app generates a JWT for the old app → redirects user back.
+
+Old app validates JWT → grants access.
+
+🔑 Analysis of This Plan
+✅ Pros
+
+Practical for migration: Lets you run both apps in parallel.
+
+User experience is seamless: Users don’t have to log in twice.
+
+Uses Identity in the new app: Leverages built-in security and cookie features.
+
+JWT remains isolated to old app: You don’t have to rewrite old app immediately.
+
+⚠️ Potential Concerns & Considerations
+
+Token Transport Security
+
+Never pass JWT in query strings (?token=...) because it may leak in browser history, logs, or referrers.
+
+Prefer POST-based transfer or secure HTTP-only cookies when redirecting.
+
+Token Validation
+
+Both apps must use strong signing keys.
+
+Always validate issuer, audience, expiration.
+
+Logout Synchronization
+
+Stateless JWT makes global logout tricky.
+
+Options:
+
+Short-lived JWT tokens (so old app auto-invalidates tokens quickly).
+
+Maintain a revocation list in old app (track tokens issued by new app).
+
+For new app (Identity cookies), make sure to sign out the cookie and optionally trigger old app logout endpoint.
+
+Replay / Forgery Attacks
+
+Make sure JWTs include:
+
+exp (expiration)
+
+iat (issued at)
+
+jti (unique ID to prevent replay if you use revocation list)
+
+Key Management
+
+Old app and new app must agree on secret keys or asymmetric signing keys for JWT.
+
+Prefer asymmetric keys (RS256) if possible — so new app can generate JWTs for old app without sharing the signing secret.
+
+🔹 Verdict
+
+Your plan is reasonable and secure enough for a migration scenario, if you follow best practices:
+
+Use HTTPS everywhere.
+
+Use secure cookie for Identity login in new app.
+
+Transfer JWT safely (POST or cookie) when redirecting.
+
+Keep token expiry short and consider revocation list for old app.
+
+Validate JWT strictly on both sides.
+
+It’s basically a temporary hybrid SSO between old JWT-based app and new Identity-based app.
+
+If you want, I can draw a clear flow diagram showing how token/cookie exchange and logout sync would work between the two apps — this helps visualize it and avoid pitfalls.
+
+Do you want me to do that?
+
+You said:
+okay forget everything just tell me if you where me and creating a web app and web api seperately what will you choose for each ? with best security to proctect data 
+ChatGPT said:
+
+Ah, perfect — now we can talk fresh, clean design for a modern scenario.
+
+If I were building a web app and a separate Web API today, my choices would be based on security, scalability, and best practices. Here’s what I’d do:
+
+1️⃣ Web App (MVC / Razor Pages)
+Authentication & Session
+
+ASP.NET Core Identity + Cookie Authentication.
+
+Why:
+
+Built-in user management (passwords, roles, claims, 2FA).
+
+Secure cookie-based auth is easier to protect against XSS/CSRF.
+
+Perfect for server-rendered web apps.
+
+Security Best Practices
+
+HTTPS only (RequireHttps).
+
+HttpOnly + Secure + SameSite cookies.
+
+Strong password policies + lockout.
+
+Optional 2FA / email confirmation.
+
+Claims & role-based authorization with [Authorize].
+
+2️⃣ Web API (REST / JSON API for SPA / Mobile / other clients)
+Authentication & Session
+
+JWT Bearer tokens (OAuth2 / OpenID Connect style).
+
+Why:
+
+Stateless → scalable across servers and apps.
+
+Works for SPAs, mobile apps, and third-party clients.
+
+Easy to integrate with IdentityServer, Azure AD, or custom Identity backend.
+
+Security Best Practices
+
+Short-lived access tokens (e.g., 15–30 minutes).
+
+Refresh tokens (secure storage in client or server).
+
+Token signing with strong keys (prefer RS256 asymmetric signing).
+
+Validate claims (roles, scopes, issuer, audience, expiry).
+
+HTTPS only.
+
+CORS properly configured for API endpoints.
+
+3️⃣ Integration Between Web App & Web API
+
+Web app can call API using either:
+
+JWT tokens stored in cookie (if same domain).
+
+Or use server-to-server token flow (like client credentials).
+
+API never relies on web session — only validates JWT.
+
+4️⃣ Optional Future-Proofing
+
+If I know this will grow into multiple apps, SPAs, or mobile clients, I’d consider:
+
+IdentityServer / Azure AD / Auth0 as central auth server.
+
+Both Web App and Web API rely on the same token provider.
+
+Allows SSO, centralized user management, and advanced security features.
+
+✅ Summary Table
+Component	Auth Method	Why
+Web App	Identity + Cookies	Secure, easy, supports roles/claims, server-rendered pages
+Web API	JWT Bearer Tokens	Stateless, scalable, works for SPA/mobile/external clients
+Both	Optional Central Auth (IdentityServer / Azure AD)	Future-proof, SSO, advanced security
+
+💡 Rule of thumb:
+
+Server-rendered web app → cookies.
+
+API / multiple clients → JWT.
+
+Use HTTPS everywhere + strong validation + short-lived tokens for all.
+
+
+Perfect ✅ — here’s a clear secure flow diagram for your scenario:
+
+
+[Old App]                         [New App]
+    |                                  |
+    | 1. User logs in (JWT issued)     |
+    |--------------------------------->|
+    |                                  |
+    | 2. Redirect to New App with JWT  |
+    |                                  |
+    |                                  |
+    |                             3. Verify old JWT
+    |                                  |
+    |                             4. Issue Identity Cookie
+    |                                  |
+    |<---------------------------------|
+    |   User now logged in on New App  |
+    |                                  |
+    | 5. User completes work in New App|
+    |                                  |
+    |                             6. Generate NEW JWT for Old App
+    |                                  |
+    | 7. Redirect user to Old App with new JWT
+    |<---------------------------------|
+    |                                  |
+    | 8. Old App verifies new JWT      |
+    |                                  |
+    | 9. User session active on Old App|
+    |                                  |
+
+Key Security Points in this Flow
+
+Old JWT is never reused
+
+Always verify old token on entry to the new app.
+
+New app issues a fresh JWT for old app.
+
+Short-lived tokens
+
+Old app JWT and new JWT should have short expiration (e.g., 10–15 min).
+
+Signed JWTs
+
+Both apps validate issuer, audience, signature, and expiry.
+
+Use strong secret key (symmetric) or RSA asymmetric keys for signing.
+
+Identity Cookie in New App
+
+Store cookie as HttpOnly + Secure + SameSite=Strict.
+
+Used for internal navigation in the new MVC app.
+
+Logout Consideration
+
+If user logs out from either app:
+
+Invalidate cookie in new app.
+
+Revoke any issued JWTs in old app (via short expiry or revocation list).
+
+✅ Why this is safe
+
+No token is reused → prevents replay attacks.
+
+Each app validates its own token → no trust issues.
+
+Identity cookie in new app keeps server-side sessions secure.
+
+Allows single login experience while maintaining strong security.
+
+
+===================
+Got it — starting fresh. Let’s focus purely on implementing JWT for a .NET 8 MVC web app in a secure and safest way.
+
+1️⃣ When to use JWT for MVC
+
+JWT is stateless, so it’s great for APIs, SPAs, or apps that need to share auth across multiple apps or clients.
+
+For classic server-rendered MVC, cookies are usually safer, but JWT can be used if you want stateless sessions or cross-app auth.
+
+So, if you insist on JWT for MVC, here’s the safest approach.
+
+2️⃣ Key Principles for Safe JWT Usage
+
+Never store JWT in localStorage
+
+Avoid XSS attacks.
+
+Store JWT in HttpOnly, Secure, SameSite cookies instead.
+
+Short-lived access tokens
+
+10–15 minutes is typical.
+
+Reduces risk if token is leaked.
+
+Refresh token for long sessions
+
+Stored securely on server-side (or HttpOnly cookie).
+
+Allows issuing a new JWT without re-login.
+
+Signed tokens
+
+Use strong signing key (HS256 for symmetric or RS256 for asymmetric).
+
+Always validate issuer, audience, expiration, and signature.
+
+Include claims carefully
+
+Only store non-sensitive info (e.g., userId, role).
+
+Never store passwords or secrets in JWT.
+
+Logout / Token Revocation
+
+JWT is stateless → can’t revoke inherently.
+
+Options:
+
+Short-lived tokens + refresh token revocation.
+
+Maintain a server-side blacklist of revoked JWTs.
+
+3️⃣ Recommended Architecture for MVC + JWT
+[Browser] <-- HttpOnly Cookie --> [MVC App]
+                       ^
+                       |
+             Refresh Token (HttpOnly)
+
+
+User logs in
+
+Server generates JWT access token (short-lived) and refresh token.
+
+Access token stored in HttpOnly cookie.
+
+Refresh token stored in secure cookie or server DB.
+
+MVC app requests pages
+
+On each request, middleware reads JWT from cookie.
+
+Validates token → user identity injected into HttpContext.User.
+
+Token expiration
+
+When access token expires, MVC app uses refresh token to get a new JWT.
+
+Refresh token rotation recommended (invalidate old refresh tokens).
+
+Logout
+
+Delete access + refresh tokens.
+
+If using blacklist → mark tokens invalid.
+
+4️⃣ Security Best Practices
+Security Aspect	Recommendation
+Transport	Always HTTPS
+Cookies	HttpOnly, Secure, SameSite=Strict
+Token Signing	Strong key, rotate periodically
+Token Lifetime	Short-lived JWT, long-lived refresh token
+Token Storage	Avoid localStorage, only HttpOnly cookies
+Claims	Minimal required, no sensitive data
+Logout	Use blacklist or rotate tokens
+XSS/CSRF	Cookies with SameSite + anti-CSRF tokens if needed
+5️⃣ Optional Enhancements
+
+Asymmetric signing (RS256): MVC app can verify tokens without knowing private key.
+
+Anti-CSRF token: if using JWT in cookies for state-changing POST requests.
+
+IP/User-agent binding: add ip or ua claim to reduce token theft abuse.
+
+✅ Summary
+
+JWT in MVC is safe if used with HttpOnly cookies.
+
+Always have short-lived access tokens + refresh tokens.
+
+Validate tokens fully (signature, expiration, claims).
+
+Logout → remove tokens / optionally use blacklist.
+
+HTTPS + Secure cookies are mandatory.
+
+
+==================
+Perfect! I can provide a complete example of JWT authentication and role-based authorization in a .NET 8 MVC web app using cookies. We'll go step by step.
+-------------------------------------
+dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer
+dotnet add package Microsoft.AspNetCore.Identity.EntityFrameworkCore
+dotnet add package Microsoft.EntityFrameworkCore.SqlServer
+
+--------------------------------------
+// 2️⃣ Configure Program.cs
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using YourNamespace.Data;
+using YourNamespace.Models;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add DB Context
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Add Identity
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
+
+// JWT Configuration
+var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtSettings["Issuer"],
+        ValidAudience = jwtSettings["Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]))
+    };
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("UserOnly", policy => policy.RequireRole("User"));
+});
+
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
+---------------------
+
+3️⃣ Add appsettings.json JWT Settings
+"JwtSettings": {
+  "Issuer": "YourApp",
+  "Audience": "YourAppUsers",
+  "SecretKey": "ThisIsASecretKeyForJWT1234567890",
+  "ExpiryMinutes": 60
+}
+
+--------------
+4️⃣ Create ApplicationUser model
+using Microsoft.AspNetCore.Identity;
+
+namespace YourNamespace.Models
+{
+    public class ApplicationUser : IdentityUser
+    {
+        // You can add custom fields here if needed
+    }
+}
+-------------------------
+
+5️⃣ Create AppDbContext
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using YourNamespace.Models;
+
+namespace YourNamespace.Data
+{
+    public class AppDbContext : IdentityDbContext<ApplicationUser>
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    }
+}
+
+--------------------------
+6️⃣ JWT Token Generation Service
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using YourNamespace.Models;
+
+namespace YourNamespace.Services
+{
+    public class JwtService
+    {
+        private readonly IConfiguration _config;
+        private readonly UserManager<ApplicationUser> _userManager;
+
+        public JwtService(IConfiguration config, UserManager<ApplicationUser> userManager)
+        {
+            _config = config;
+            _userManager = userManager;
+        }
+
+        public async Task<string> GenerateToken(ApplicationUser user)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.Id)
+            };
+
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["JwtSettings:SecretKey"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: _config["JwtSettings:Issuer"],
+                audience: _config["JwtSettings:Audience"],
+                claims: claims,
+                expires: DateTime.Now.AddMinutes(Convert.ToDouble(_config["JwtSettings:ExpiryMinutes"])),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+    }
+}
+
+--------------------------
+7️⃣ Account Controller (Login + Role-based access)
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using YourNamespace.Models;
+using YourNamespace.Services;
+
+namespace YourNamespace.Controllers
+{
+    public class AccountController : Controller
+    {
+        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly JwtService _jwtService;
+
+        public AccountController(UserManager<ApplicationUser> userManager, 
+                                 SignInManager<ApplicationUser> signInManager,
+                                 JwtService jwtService)
+        {
+            _userManager = userManager;
+            _signInManager = signInManager;
+            _jwtService = jwtService;
+        }
+
+        [HttpGet]
+        public IActionResult Login() => View();
+
+        [HttpPost]
+        public async Task<IActionResult> Login(string username, string password)
+        {
+            var user = await _userManager.FindByNameAsync(username);
+            if (user == null) return Unauthorized();
+
+            var result = await _signInManager.CheckPasswordSignInAsync(user, password, false);
+            if (!result.Succeeded) return Unauthorized();
+
+            var token = await _jwtService.GenerateToken(user);
+
+            Response.Cookies.Append("JWTToken", token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddMinutes(60)
+            });
+
+            return RedirectToAction("Index", "Home");
+        }
+
+        [HttpPost]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete("JWTToken");
+            return RedirectToAction("Login");
+        }
+    }
+}
+
+-----------------
+8️⃣ Role-based Authorization Example
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace YourNamespace.Controllers
+{
+    [Authorize(Roles = "Admin")]
+    public class AdminController : Controller
+    {
+        public IActionResult Dashboard()
+        {
+            return View();
+        }
+    }
+
+    [Authorize(Roles = "User")]
+    public class UserController : Controller
+    {
+        public IActionResult Profile()
+        {
+            return View();
+        }
+    }
+}
+
+
+========================================================================================================
+========================================================================================================
+Perfect! Let’s go step by step to implement JWT-based authentication with role-based authorization in a .NET Core 8 MVC web app using Dapper and stored procedures. I’ll provide a complete working example with security best practices.
+
+1. Setup
+
+Create a .NET 8 MVC project:
+
+dotnet new mvc -n JwtDapperDemo
+cd JwtDapperDemo
+
+
+Install NuGet packages:
+
+dotnet add package Dapper
+dotnet add package Microsoft.Data.SqlClient
+dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer
+dotnet add package System.IdentityModel.Tokens.Jwt
+
+
+Create a connection string in appsettings.json:
+
+"ConnectionStrings": {
+  "DefaultConnection": "Server=YOUR_SERVER;Database=YOUR_DB;Trusted_Connection=True;"
+},
+"Jwt": {
+  "Key": "SuperSecretKey12345", 
+  "Issuer": "JwtDemoIssuer",
+  "Audience": "JwtDemoAudience",
+  "DurationInMinutes": 60
+}
+
+2. Create the User and Role stored procedures
+-- Get user by username
+CREATE PROCEDURE sp_GetUserByUsername
+    @Username NVARCHAR(50)
+AS
+BEGIN
+    SELECT Id, Username, PasswordHash, RoleName
+    FROM Users U
+    INNER JOIN Roles R ON U.RoleId = R.Id
+    WHERE Username = @Username
+END
+
+
+Assume your Users table has Id, Username, PasswordHash, RoleId, and Roles table has Id, RoleName.
+
+3. Create a User Model
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string RoleName { get; set; } = string.Empty;
+}
+
+4. JWT Service
+
+Create a service to generate JWT tokens:
+
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+
+public class JwtService
+{
+    private readonly IConfiguration _config;
+
+    public JwtService(IConfiguration config)
+    {
+        _config = config;
+    }
+
+    public string GenerateToken(User user)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, user.Username),
+            new Claim(ClaimTypes.Role, user.RoleName)
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: _config["Jwt:Issuer"],
+            audience: _config["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(double.Parse(_config["Jwt:DurationInMinutes"])),
+            signingCredentials: creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+}
+
+5. Repository Layer using Dapper
+using Dapper;
+using Microsoft.Data.SqlClient;
+
+public interface IUserRepository
+{
+    Task<User?> GetUserByUsername(string username);
+}
+
+public class UserRepository : IUserRepository
+{
+    private readonly IConfiguration _config;
+    public UserRepository(IConfiguration config) => _config = config;
+
+    private IDbConnection CreateConnection() => new SqlConnection(_config.GetConnectionString("DefaultConnection"));
+
+    public async Task<User?> GetUserByUsername(string username)
+    {
+        using var conn = CreateConnection();
+        var result = await conn.QueryFirstOrDefaultAsync<User>(
+            "sp_GetUserByUsername",
+            new { Username = username },
+            commandType: System.Data.CommandType.StoredProcedure
+        );
+        return result;
+    }
+}
+
+6. Authentication Controller
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Cryptography;
+using System.Text;
+
+[Route("api/[controller]")]
+[ApiController]
+public class AuthController : ControllerBase
+{
+    private readonly IUserRepository _userRepo;
+    private readonly JwtService _jwtService;
+
+    public AuthController(IUserRepository userRepo, JwtService jwtService)
+    {
+        _userRepo = userRepo;
+        _jwtService = jwtService;
+    }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    {
+        var user = await _userRepo.GetUserByUsername(request.Username);
+        if (user == null || !VerifyPassword(request.Password, user.PasswordHash))
+            return Unauthorized("Invalid credentials");
+
+        var token = _jwtService.GenerateToken(user);
+        return Ok(new { token });
+    }
+
+    private bool VerifyPassword(string password, string storedHash)
+    {
+        using var sha256 = SHA256.Create();
+        var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+        var hash = Convert.ToBase64String(hashedBytes);
+        return hash == storedHash;
+    }
+}
+
+public class LoginRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
+7. Configure JWT in Program.cs
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services
+builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddSingleton<JwtService>();
+
+// JWT Authentication
+var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]);
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateIssuerSigningKey = true,
+        ValidateLifetime = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(key)
+    };
+});
+
+// Authorization
+builder.Services.AddAuthorization();
+
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
+
+8. Role-based Authorization Example
+[Authorize(Roles = "Admin")]
+public class AdminController : Controller
+{
+    public IActionResult Index()
+    {
+        return View();
+    }
+}
+
+
+✅ This setup gives you:
+
+JWT authentication
+
+Role-based authorization
+
+Dapper + Stored Procedures
+
+Secure password verification (SHA256; for production, consider BCrypt)
